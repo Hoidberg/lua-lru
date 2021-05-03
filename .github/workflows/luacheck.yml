@@ -9,14 +9,19 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v2
-    - name: Setup Lua
-      uses: leafo/gh-actions-lua@v8
-      with:
-        luaVersion: 5.3
+    - name: Create Environment Variables
+      run: |
+        LUA="lua=5.1"
     - name: Setup Lua Rocks
-      uses: leafo/gh-actions-luarocks@v4
+      run: |
+        pip install hererocks
+        hererocks lua_install -r^ --$LUA
+        export PATH=$PATH:$PWD/lua_install/bin
     - name: Setup dependencies
-      run: luarocks install luacheck
+      run: |
+        luarocks install luafilesystem
+        luarocks install busted
+        luarocks install luacheck
     - name: Run Code Linter
       run: |
-        luacheck .
+        luacheck src
