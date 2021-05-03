@@ -61,8 +61,8 @@ function lru.new(max_size, max_bytes)
 	function del(key, tuple)
 		self._map[key] = nil
 		cut(tuple)
-		self._size -= - 1
-		self._bytes_used -= (tuple[self._BYTES] or 0)
+		self._size = self._size - 1
+		self._bytes_used = self._bytes_used - (tuple[self._BYTES] or 0)
 		self._removed_tuple = tuple
 	end
 	
@@ -120,8 +120,8 @@ function lru:set(_, key, value, bytes)
 		tuple1[self._VALUE] = value
 		tuple1[self._KEY] = key
 		tuple1[self._BYTES] = self._max_bytes and bytes
-		self._size += 1
-		self._bytes_used += bytes
+		self._size = self._size + 1
+		self._bytes_used = self._bytes_used + bytes
 		setNewest(tuple1)
 	else
 		assert(key ~= nil, "Key may not be nil")
