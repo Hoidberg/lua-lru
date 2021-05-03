@@ -3,157 +3,138 @@
 -- See the LICENSE file for terms of use.
 
 local lru = {}
+lru.__index = lru
 
 function lru.new(max_size, max_bytes)
+	local self = setmetatable({}, lru)
+	
+	self._size = 0
+	self._bytes_used = 0
+	
+	self._map = {}
+	
+	self._VALUE = 1
+	self._PREV = 2
+	self._NEXT = 3
+	self._KEY = 4
+	self._BYTES = 5
+	
+	self._newest = nil
+	self._oldest = nil
+	
+	self._removed_tuple = nil
+	
+	function cut(tuple)
+		local tuple_prev = tuple[self._PREV]
+		local tuple_next = tuple[self._NEXT]
+		tuple[self._PREV] = nil
+		tuple[self._NEXT] = nil
+		if tuple_prev and tuple_next then
+			tuple_prev[self._NEXT] = tuple_next
+			tuple_next[self._PREV] = tuple_prev
+		elseif tuple_prev then
+			-- tuple is the oldest element
+			tuple_prev[self._NEXT] = nil
+			self._oldest = tuple_prev
+		elseif tuple_next then
+			-- tuple is the newest element
+			tuple_next[self._PREV] = nil
+			self._newest = tuple_next
+		else
+			-- tuple is the only element
+			self._newest = nil
+			self._oldest = nil
+		end
+	end
+	
+	function setNewest(tuple)
+		if not self._newest then
+			self._newest = tuple
+			self._oldest = tuple
+		else
+			tuple[self._NEXT] = self._newest
+			self._newest[self._PREV] = tuple
+			self._newest = tuple
+		end
+	end
+	
+	function del(key, tuple)
+		self._map[key] = nil
+		cut(tuple)
+		self._size -= - 1
+		self._bytes_used -= (tuple[self._BYTES] or 0)
+		self._removed_tuple = tuple
+	end
+	
+	function makeFreeSpace(bytes)
+		while self._size + 1 > max_size or
+			(max_bytes and self._bytes_used + bytes > max_bytes)
+		do
+			assert(self._oldest, "not enough storage for cache")
+			del(self._oldest[self._KEY], self._oldest)
+		end
+	end
+	
+	function mynext(_, prev_key)
+		local tuple
+		if prev_key then
+			tuple = self._map[prev_key][self._NEXT]
+		else
+			tuple = self._newest
+		end
+		if tuple then
+			return tuple[self._KEY], tuple[self._VALUE]
+		else
+			return nil
+		end
+	end
+	
+	return self
+end
 
-    assert(max_size >= 1, "max_size must be >= 1")
-    assert(not max_bytes or max_bytes >= 1,
-        "max_bytes must be >= 1")
+function lru:__pairs()
+	return mynext, nil, nil
+end
 
-    -- current size
-    local size = 0
-    local bytes_used = 0
+function lru:get(_, key)
+	local tuple = self._map[key]
+	if not tuple then
+		return nil
+	end
+	cut(tuple)
+	setNewest(tuple)
+	return tuple[self._VALUE]
+end
 
-    -- map is a hash map from keys to tuples
-    -- tuple: value, prev, next, key
-    -- prev and next are pointers to tuples
-    local map = {}
+function lru:set(_, key, value, bytes)
+	local tuple = self._map[key]
+	if tuple then
+		del(key, tuple)
+	end
+	if value ~= nil then
+		-- the value is not removed
+		bytes = self._max_bytes and (bytes or #value) or 0
+		makeFreeSpace(bytes)
+		local tuple1 = self._removed_tuple or {}
+		self._map[key] = tuple1
+		tuple1[self._VALUE] = value
+		tuple1[self._KEY] = key
+		tuple1[self._BYTES] = self._max_bytes and bytes
+		self._size += 1
+		self._bytes_used += bytes
+		setNewest(tuple1)
+	else
+		assert(key ~= nil, "Key may not be nil")
+	end
+	self._removed_tuple = nil
+end
 
-    -- indices of tuple
-    local VALUE = 1
-    local PREV = 2
-    local NEXT = 3
-    local KEY = 4
-    local BYTES = 5
+function lru:delete(_, key)
+	return self:set(_, key, nil)
+end
 
-    -- newest and oldest are ends of double-linked list
-    local newest = nil -- first
-    local oldest = nil -- last
-
-    local removed_tuple -- created in del(), removed in set()
-
-    -- remove a tuple from linked list
-    local function cut(tuple)
-        local tuple_prev = tuple[PREV]
-        local tuple_next = tuple[NEXT]
-        tuple[PREV] = nil
-        tuple[NEXT] = nil
-        if tuple_prev and tuple_next then
-            tuple_prev[NEXT] = tuple_next
-            tuple_next[PREV] = tuple_prev
-        elseif tuple_prev then
-            -- tuple is the oldest element
-            tuple_prev[NEXT] = nil
-            oldest = tuple_prev
-        elseif tuple_next then
-            -- tuple is the newest element
-            tuple_next[PREV] = nil
-            newest = tuple_next
-        else
-            -- tuple is the only element
-            newest = nil
-            oldest = nil
-        end
-    end
-
-    -- insert a tuple to the newest end
-    local function setNewest(tuple)
-        if not newest then
-            newest = tuple
-            oldest = tuple
-        else
-            tuple[NEXT] = newest
-            newest[PREV] = tuple
-            newest = tuple
-        end
-    end
-
-    local function del(key, tuple)
-        map[key] = nil
-        cut(tuple)
-        size = size - 1
-        bytes_used = bytes_used - (tuple[BYTES] or 0)
-        removed_tuple = tuple
-    end
-
-    -- removes elemenets to provide enough memory
-    -- returns last removed element or nil
-    local function makeFreeSpace(bytes)
-        while size + 1 > max_size or
-            (max_bytes and bytes_used + bytes > max_bytes)
-        do
-            assert(oldest, "not enough storage for cache")
-            del(oldest[KEY], oldest)
-        end
-    end
-
-    local function get(_, key)
-        local tuple = map[key]
-        if not tuple then
-            return nil
-        end
-        cut(tuple)
-        setNewest(tuple)
-        return tuple[VALUE]
-    end
-
-    local function set(_, key, value, bytes)
-        local tuple = map[key]
-        if tuple then
-            del(key, tuple)
-        end
-        if value ~= nil then
-            -- the value is not removed
-            bytes = max_bytes and (bytes or #value) or 0
-            makeFreeSpace(bytes)
-            local tuple1 = removed_tuple or {}
-            map[key] = tuple1
-            tuple1[VALUE] = value
-            tuple1[KEY] = key
-            tuple1[BYTES] = max_bytes and bytes
-            size = size + 1
-            bytes_used = bytes_used + bytes
-            setNewest(tuple1)
-        else
-            assert(key ~= nil, "Key may not be nil")
-        end
-        removed_tuple = nil
-    end
-
-    local function delete(_, key)
-        return set(_, key, nil)
-    end
-
-    local function mynext(_, prev_key)
-        local tuple
-        if prev_key then
-            tuple = map[prev_key][NEXT]
-        else
-            tuple = newest
-        end
-        if tuple then
-            return tuple[KEY], tuple[VALUE]
-        else
-            return nil
-        end
-    end
-
-    -- returns iterator for keys and values
-    local function lru_pairs()
-        return mynext, nil, nil
-    end
-
-    local mt = {
-        __index = {
-            get = get,
-            set = set,
-            delete = delete,
-            pairs = lru_pairs,
-        },
-        __pairs = lru_pairs,
-    }
-
-    return setmetatable({}, mt)
+function lru:pairs()
+	return mynext, nil, nil
 end
 
 return lru
