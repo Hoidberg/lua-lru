@@ -6,17 +6,16 @@ jobs:
   luacheck:
     runs-on: ubuntu-latest
 
-    steps:
+    steps:    
     - name: Checkout
       uses: actions/checkout@v2
+    - name: Setup Lua
+      uses: leafo/gh-actions-lua@v8
+      with:
+        luaVersion: 5.3
     - name: Create Environment Variables
       run: |
         LUA="lua=5.1"
-    - name: Setup Lua Rocks
-      run: |
-        pip install hererocks
-        hererocks lua_install -r^ --$LUA
-        export PATH=$PATH:$PWD/lua_install/bin
     - name: Setup dependencies
       run: |
         luarocks install luafilesystem
