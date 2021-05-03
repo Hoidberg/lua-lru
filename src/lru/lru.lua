@@ -2,14 +2,17 @@
 -- Copyright (c) 2015 Boris Nagaev
 -- See the LICENSE file for terms of use.
 
-local lru = {}
-lru.__index = lru
-
 local cut
 local setNewest
 local del
 local makeFreeSpace
 local mynext
+
+local lru = {}
+lru.__index = lru
+lru.__pairs = function()
+	return mynext, nil, nil
+end
 
 function lru.new(max_size, max_bytes)
 	local self = setmetatable({}, lru)
@@ -96,10 +99,6 @@ function lru.new(max_size, max_bytes)
 	end
 
 	return self
-end
-
-function lru:__pairs()
-	return mynext, nil, nil
 end
 
 function lru:get(_, key)
