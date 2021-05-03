@@ -14,7 +14,9 @@ env:
 
 before_install:
   - source .travis/setenv_lua.sh
+  - luarocks install luacov
   - luarocks install luacov-coveralls
+  - luarocks install luacov-reporter-lcov
   - luarocks install busted
 
 install:
