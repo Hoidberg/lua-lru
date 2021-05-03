@@ -1,5 +1,4 @@
-language: lua
-
+language: python
 sudo: false
 
 env:
