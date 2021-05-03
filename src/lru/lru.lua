@@ -16,6 +16,10 @@ end
 
 function lru.new(max_size, max_bytes)
 	local self = setmetatable({}, lru)
+	
+	function self:pairs()
+		return mynext, nil, nil
+	end
 
 	self._size = 0
 	self._bytes_used = 0
@@ -136,10 +140,6 @@ end
 
 function lru:delete(_, key)
 	return self:set(_, key, nil)
-end
-
-function lru:pairs()
-	return mynext, nil, nil
 end
 
 return lru
