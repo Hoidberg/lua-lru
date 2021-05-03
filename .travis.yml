@@ -1,11 +1,11 @@
-language: python
-os: linux
-dist: xenial
+language: lua
+
+sudo: false
 
 env:
   global:
     - LUAROCKS=2.2.2
-  jobs:
+  matrix:
     - LUA=lua5.1
     - LUA=lua5.2
     - LUA=lua5.3
