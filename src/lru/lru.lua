@@ -5,6 +5,12 @@
 local lru = {}
 lru.__index = lru
 
+local cut
+local setNewest
+local del
+local makeFreeSpace
+local mynext
+
 function lru.new(max_size, max_bytes)
 	local self = setmetatable({}, lru)
 	
@@ -24,7 +30,7 @@ function lru.new(max_size, max_bytes)
 	
 	self._removed_tuple = nil
 	
-	function cut(tuple)
+	cut = function(tuple)
 		local tuple_prev = tuple[self._PREV]
 		local tuple_next = tuple[self._NEXT]
 		tuple[self._PREV] = nil
@@ -47,7 +53,7 @@ function lru.new(max_size, max_bytes)
 		end
 	end
 	
-	function setNewest(tuple)
+	setNewest = function(tuple)
 		if not self._newest then
 			self._newest = tuple
 			self._oldest = tuple
@@ -58,7 +64,7 @@ function lru.new(max_size, max_bytes)
 		end
 	end
 	
-	function del(key, tuple)
+	del = function(key, tuple)
 		self._map[key] = nil
 		cut(tuple)
 		self._size = self._size - 1
@@ -66,7 +72,7 @@ function lru.new(max_size, max_bytes)
 		self._removed_tuple = tuple
 	end
 	
-	function makeFreeSpace(bytes)
+	makeFreeSpace = function(bytes)
 		while self._size + 1 > max_size or
 			(max_bytes and self._bytes_used + bytes > max_bytes)
 		do
@@ -75,7 +81,7 @@ function lru.new(max_size, max_bytes)
 		end
 	end
 	
-	function mynext(_, prev_key)
+	mynext = function(_, prev_key)
 		local tuple
 		if prev_key then
 			tuple = self._map[prev_key][self._NEXT]
