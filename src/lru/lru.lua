@@ -139,7 +139,7 @@ function lru:delete(_, key)
 	return self:set(_, key, nil)
 end
 
-function lru:pairs()
+local function lru:pairs()
 	return mynext, nil, nil
 end
 
